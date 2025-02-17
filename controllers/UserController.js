@@ -6,6 +6,7 @@ class UserController {
 
         this.onSubmit();
         this.onEdit();
+        this.selectAll();
     }
 
     onEdit() {
@@ -19,44 +20,60 @@ class UserController {
             event.preventDefault();
             let btn = this.formUpdateEl.querySelector("[type=submit]")
             btn.disabled = true;
-            debugger;
             let values = this.getValues(this.formUpdateEl);
+            debugger;
             let index = this.formUpdateEl.dataset.trIndex;
             let tr = this.tableEl.rows[index];
 
+            let userOld = JSON.parse(tr.dataset.user);
+            //this object assign, merge the two objetcs after the {}, it also priorie the values on the second objetcs
+            let result = Object.assign({},userOld,values);
+
+    
             this.getPhoto(this.formUpdateEl).then(
                 (content) => {
-                    values.photo = content;
-                    tr.dataset.user = JSON.stringify(values);
-                    tr.innerHTML = `<tr>
-                                        <td><img src=${values.photo} alt="User Image" class="img-circle img-sm"></td>
-                                        <td> ${values.name}   </td>
-                                        <td> ${values.email} </td>
-                                        <td>${(values.admin) ? 'Sim' : 'Não'} </td>
-                                        <td>${Utils.dateFormater(values.register)} </td>
-                                        <td>
-                                        <button type="button" class="btn btn-primary btn-edit btn-xs btn-flat">Editar</button>
-                                        <button type="button" class="btn btn-danger btn-xs btn-flat">Excluir</button>
-                                        </td>
-                                    </tr>`
+                    if(!values.photo){
+                        result._photo = userOld._photo;
+                    } else{
+                        result._photo = content;
+                    }
+                    
+                    let user = new User();
+
+                    user.loadFromJSON(result)
+                    user.save();
+                    this.getTr(user,tr);
+                    
                     btn.disabled = false;
-                    this.addEventsTr(tr);
+                    
                     this.updateCount();
+                    this.formUpdateEl.reset();
+                    this.showPanelCreate();
                 },
                 (e) => {
                     console.error(e)
                 }
 
             )
-
-
-            
         
             
         })
     }
 
     addEventsTr(tr){
+
+        tr.querySelector(".btn-delete").addEventListener("click", e => {
+            if(confirm("Deseja realmente excluir ?")) { 
+
+                let user = new User();
+                user.loadFromJSON(JSON.parse(tr.dataset.user));
+                user.remove();
+
+                tr.remove();
+                this.updateCount();
+            };
+        })
+
         tr.querySelector(".btn-edit").addEventListener("click", e => {
             //for in, almost like 'enhanced for' from java
            
@@ -66,8 +83,6 @@ class UserController {
             for (let name in json) {
                 let field = this.formUpdateEl.querySelector("[name=" + name.replace("_", "") + "]");
                 if (field) {
-                    if(field.type == "file") continue;
-                    
                     switch(field.type){
                         case 'file' : 
                              this.formUpdateEl.querySelector(".photo").src = json[name];
@@ -105,10 +120,11 @@ class UserController {
             this.getPhoto(this.formEl).then(
                 (content) => {
                     values.photo = content;
-
+                    values.save();
                     this.addLine(values);
                     this.formEl.reset();
                     btn.disabled = false;
+                    
                 },
                 (e) => {
                     console.error(e)
@@ -192,44 +208,61 @@ class UserController {
     }
 
 
-    addLine(dataUser, tableId) {
+    selectAll(){
+        
+        let users = User.getUsersStorage();
+        users.forEach(dataUser=>{
+            let user = new User();
 
-        let tr = document.createElement("tr");
+            user.loadFromJSON(dataUser)
+            this.addLine(user);
+        });
+    }
+
+
+
+    getTr(dataUser, tr = null){
+       
+        if(!tr) tr = document.createElement("tr");
 
         tr.dataset.user = JSON.stringify(dataUser);
+        
         tr.innerHTML =
-            `<tr>
-                <td><img src=${dataUser.photo} alt="User Image" class="img-circle img-sm"></td>
-                <td> ${dataUser.name}   </td>
-                <td> ${dataUser.email} </td>
-                <td>${(dataUser.admin) ? 'Sim' : 'Não'} </td>
-                <td>${Utils.dateFormater(dataUser.register)} </td>
-                <td>
-                <button type="button" class="btn btn-primary btn-edit btn-xs btn-flat">Editar</button>
-                <button type="button" class="btn btn-danger btn-xs btn-flat">Excluir</button>
-                </td>
-            </tr>`
+        `<tr>
+            <td><img src=${dataUser.photo} alt="User Image" class="img-circle img-sm"></td>
+            <td> ${dataUser.name}   </td>
+            <td> ${dataUser.email} </td>
+            <td>${(dataUser.admin) ? 'Sim' : 'Não'} </td>
+            <td>${Utils.dateFormater(dataUser.register)} </td>
+            <td>
+            <button type="button" class="btn btn-primary btn-edit btn-xs btn-flat">Editar</button>
+            <button type="button" class="btn btn-danger btn-delete btn-xs btn-flat">Excluir</button>
+            </td>
+        </tr>`
 
-            this.addEventsTr(tr);
+        this.addEventsTr(tr);
 
-
-        this.tableEl.appendChild(tr);
-
-        this.updateCount();
+        return tr;
 
     }
 
+    addLine(dataUser) {
+        let tr = this.getTr(dataUser);
+        this.tableEl.appendChild(tr);
+        this.updateCount();
+    }
 
     showPanelCreate() {
         document.getElementById("box-user-create").style.display = "block";
         document.getElementById("box-user-update").style.display = "none";
     }
+
     showPanelUpdate() {
         document.getElementById("box-user-create").style.display = "none";
         document.getElementById("box-user-update").style.display = "block";
     }
-    updateCount() {
 
+    updateCount() {
         let numberUsers = 0;
         let numberAdmin = 0;
 
@@ -240,12 +273,9 @@ class UserController {
 
         })
 
-
         document.getElementById("number-users").innerHTML = numberUsers;
         document.getElementById("number-users-admin").innerHTML = numberAdmin;
 
-
     }
-
 
 }
